@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from io import BytesIO
 import config as cfg
-
+from optimization.genetic_algo import GeneticOptimizer
 # ===== 页面设置 =====
 st.set_page_config(
     page_title="mBridge库存优化仿真",
@@ -381,9 +381,23 @@ def main():
             """, unsafe_allow_html=True)
 
         with col_btn:
-            run_btn = st.button('▶ 开始仿真计算', type='primary', use_container_width=True)
+            with col_btn:
+                st.markdown("**优化方法**")
+                opt_method = st.radio("选择优化方法",
+                                      ["网格搜索 (Grid Search)", "遗传算法 (Genetic Algorithm)"],
+                                      horizontal=True,
+                                      help="网格搜索遍历所有组合；遗传算法通过进化迭代找最优解")
+                run_btn = st.button('▶ 开始仿真计算', type='primary', use_container_width=True)
 
         if run_btn:
+            # 如果用遗传算法，先用GA找到最优(s,S)
+            if "遗传算法" in opt_method:
+                st.info(f"🧬 遗传算法优化中（种群20，迭代15代）...")
+                ga = GeneticOptimizer(transport_mode='air', mbridge=True, days=90,
+                                      pop_size=20, generations=15)
+                s_param, S_param, ga_cost, ga_sl, _ = ga.optimize(verbose=False)
+                st.success(f"✅ 遗传算法找到最优策略: s={s_param}, S={S_param}, "
+                          f"成本={ga_cost:.0f}元, 服务={ga_sl:.1%}")
             with st.spinner('仿真运行中，请稍候（约30秒-1分钟）...'):
                 # 跑四组实验
                 trad_sea = run_repeated(s_param, S_param, 'sea', False, sim_days, n_runs,
