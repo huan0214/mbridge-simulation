@@ -1,28 +1,22 @@
 """
 最小安全库存下限：mBridge下物流随机性决定的安全库存底限
-找到K、σL与最小安全库存s的关系
 """
 import sys
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import numpy as np
 import config as cfg
-from models.warehouse import Warehouse
 from utils.distributions import set_seed
 import plotly.graph_objects as go
 
 
-def run_safety_floor(days=365, n_runs=5):
-    """
-    在mBridge环境下，改变固定订货费K和提前期标准差
-    观察最优安全库存s的变化
-    """
-    # K值梯度
+def run_safety_floor(days=365, n_runs=5,
+                     demand_mean=10, demand_std=3,
+                     stockout_cost=20, fixed_order_cost=50, hold_cost=0.5,
+                     unit_cost_sea=2, unit_cost_air=8):
     K_values = [10, 25, 50, 100, 200]
-    # 提前期变异系数（标准差/均值）
-    cv_values = [0.2, 0.4, 0.6, 0.8, 1.0]  # 0.2=稳定空运, 1.0=极不稳定海运
+    cv_values = [0.2, 0.4, 0.6, 0.8, 1.0]
 
     results = []
 
@@ -31,27 +25,28 @@ def run_safety_floor(days=365, n_runs=5):
     print(f"  mBridge环境 | {days}天 × {n_runs}次重复")
     print("=" * 60)
 
+    from app import SimulationWarehouse
+
     for K in K_values:
         for cv in cv_values:
-            # 构建对应cv的Gamma参数
-            # cv = std/mean = sqrt(shape*scale^2)/(shape*scale) = 1/sqrt(shape)
-            shape = int(1 / (cv ** 2))
-            scale = 7 / shape if cv < 0.5 else 30 / shape  # 均值7天(快)或30天(慢)
+            shape = max(1, int(1 / (cv ** 2)))
+            scale = 7 / shape if cv < 0.5 else 30 / shape
 
-            # 临时修改
-            old_K = cfg.FIXED_ORDER_COST
-            cfg.FIXED_ORDER_COST = K
-
-            # 找到这个K和cv下的最优s（用网格搜索）
             best_s = None
             best_cost = float('inf')
 
             for s in range(10, 120, 10):
-                S = s + 40  # 固定S-s=40
+                S = s + 40
 
                 costs = []
                 for _ in range(n_runs):
-                    wh = Warehouse(s=s, S=S, transport_mode='air', mbridge=True)
+                    wh = SimulationWarehouse(
+                        s=s, S=S, transport_mode='air', mbridge=True,
+                        demand_mean=demand_mean, demand_std=demand_std,
+                        stockout_cost=stockout_cost, fixed_order_cost=K,
+                        hold_cost=hold_cost,
+                        unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air
+                    )
                     r = wh.run(days=days)
                     costs.append(r['total_cost'])
 
@@ -63,19 +58,15 @@ def run_safety_floor(days=365, n_runs=5):
             results.append({
                 'K': K, 'cv': cv,
                 'best_s': best_s,
-                'best_cost': best_cost,
-                'shape': shape, 'scale': scale
+                'best_cost': best_cost
             })
 
             print(f"  K={K:3d}, cv={cv:.1f} → 最优s={best_s:3d}, 成本={best_cost:.0f}元")
-
-            cfg.FIXED_ORDER_COST = old_K
 
     return results
 
 
 def plot_safety_floor(results):
-    """画最小安全库存热力图"""
     K_values = sorted(set(r['K'] for r in results))
     cv_values = sorted(set(r['cv'] for r in results))
 
@@ -107,19 +98,4 @@ def plot_safety_floor(results):
         height=500
     )
 
-    # 经验公式注解
-    fig.add_annotation(
-        x=2, y=4.5,
-        text='s ∝ √(K × cv × D̄)<br>D̄=日均需求',
-        showarrow=False,
-        font=dict(size=13, color='darkblue'),
-        bgcolor='rgba(255,255,255,0.8)'
-    )
-
     return fig
-
-
-if __name__ == '__main__':
-    results = run_safety_floor(days=365, n_runs=5)
-    fig = plot_safety_floor(results)
-    fig.show()

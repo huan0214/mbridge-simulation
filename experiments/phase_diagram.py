@@ -4,24 +4,23 @@
 """
 import sys
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import numpy as np
 import random
 import config as cfg
-from models.warehouse import Warehouse
 from utils.distributions import set_seed
 import plotly.graph_objects as go
 
 
-def run_phase_diagram(s=60, S=100, days=365, n_runs=10):
+def run_phase_diagram(s=60, S=100, days=365, n_runs=5,
+                      demand_mean=10, demand_std=3,
+                      stockout_cost=20, fixed_order_cost=50, hold_cost=0.5,
+                      unit_cost_sea=2, unit_cost_air=8):
     """
     资金延迟从0到3天，分多档测试
-    返回每个延迟下的空运/海运成本、服务水平和策略选择
     """
-    # 资金延迟梯度（小时），0=秒级mBridge
-    delays_hours = [0, 1, 3, 6, 12, 24, 48, 72]  # 0h, 1h, 3h, 6h, 12h, 1天, 2天, 3天
+    delays_hours = [0, 1, 3, 6, 12, 24, 48, 72]
     delay_labels = ['0(秒级)', '1小时', '3小时', '6小时', '12小时', '1天', '2天', '3天']
 
     results = {'delay_hours': [], 'delay_labels': [],
@@ -35,31 +34,34 @@ def run_phase_diagram(s=60, S=100, days=365, n_runs=10):
     print("=" * 60)
     print()
 
+    from app import SimulationWarehouse
+
     for dh, dl in zip(delays_hours, delay_labels):
         print(f"资金延迟: {dl:>8s} ...", end=" ", flush=True)
 
-        # 临时修改资金延迟参数（小时转天）
         delay_days = dh / 24.0
 
-        # 跑海运
         sea_costs, sea_sls = [], []
         air_costs, air_sls = [], []
 
         for _ in range(n_runs):
-            # 海运
-            wh_sea = Warehouse(s=s, S=S, transport_mode='sea', mbridge=(dh == 0))
-            if dh > 0:
-                # 修改传统延迟范围
-                wh_sea._cash_delay = delay_days
-            else:
-                wh_sea.mbridge = True
+            wh_sea = SimulationWarehouse(
+                s=s, S=S, transport_mode='sea', mbridge=(dh==0),
+                demand_mean=demand_mean, demand_std=demand_std,
+                stockout_cost=stockout_cost, fixed_order_cost=fixed_order_cost,
+                hold_cost=hold_cost,
+                unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air,
+                cash_delay_days=(delay_days if dh > 0 else None)
+            )
 
-            # 空运
-            wh_air = Warehouse(s=s, S=S, transport_mode='air', mbridge=(dh == 0))
-            if dh > 0:
-                wh_air._cash_delay = delay_days
-            else:
-                wh_air.mbridge = True
+            wh_air = SimulationWarehouse(
+                s=s, S=S, transport_mode='air', mbridge=(dh==0),
+                demand_mean=demand_mean, demand_std=demand_std,
+                stockout_cost=stockout_cost, fixed_order_cost=fixed_order_cost,
+                hold_cost=hold_cost,
+                unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air,
+                cash_delay_days=(delay_days if dh > 0 else None)
+            )
 
             r_sea = wh_sea.run(days=days)
             r_air = wh_air.run(days=days)
@@ -94,10 +96,8 @@ def run_phase_diagram(s=60, S=100, days=365, n_runs=10):
 
 
 def plot_phase_diagram(results):
-    """画相图"""
     fig = go.Figure()
 
-    # 两条成本线
     fig.add_trace(go.Scatter(
         x=results['delay_labels'], y=results['sea_cost'],
         mode='lines+markers', name='海运成本',
@@ -109,12 +109,11 @@ def plot_phase_diagram(results):
         line=dict(color='#2ecc71', width=3), marker=dict(size=10)
     ))
 
-    # 标注最优模式
     for i, (label, mode) in enumerate(zip(results['delay_labels'], results['best_mode'])):
-        y_pos = max(results['sea_cost'][i], results['air_cost'][i]) + 2000
+        y_pos = max(results['sea_cost'][i], results['air_cost'][i]) * 1.05
         color = '#2ecc71' if mode == '空运' else '#3498db'
         fig.add_annotation(x=label, y=y_pos, text=f'最优:{mode}',
-                           showarrow=False, font=dict(color=color, size=11, weight='bold'))
+                          showarrow=False, font=dict(color=color, size=11, weight='bold'))
 
     fig.update_layout(
         title='<b>资金效率相图：最优运输模式随资金延迟的变化</b>',
@@ -125,16 +124,3 @@ def plot_phase_diagram(results):
     )
 
     return fig
-
-
-if __name__ == '__main__':
-    results = run_phase_diagram(s=60, S=100, days=365, n_runs=5)
-
-    print(f"\n{'=' * 60}")
-    print("  相图结论")
-    print(f"{'=' * 60}")
-    print(f"  资金延迟梯度: {results['delay_labels']}")
-    print(f"  各延迟下的最优模式: {results['best_mode']}")
-
-    fig = plot_phase_diagram(results)
-    fig.show()
