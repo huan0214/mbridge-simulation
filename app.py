@@ -550,7 +550,11 @@ def main():
 
         if st.button('▶ 运行相图分析', type='primary', key='phase_btn'):
             with st.spinner('相图分析运行中（约2-3分钟）...'):
-                phase_results = run_phase_diagram(s=s_param, S=S_param, days=min(sim_days, 365), n_runs=5)
+                phase_results = run_phase_diagram(s=s_param, S=S_param, days=min(sim_days, 365), n_runs=5,
+                                                  demand_mean=demand_mean, demand_std=demand_std,
+                                                  stockout_cost=stockout_cost, fixed_order_cost=fixed_order_cost,
+                                                  hold_cost=hold_cost,
+                                                  unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air)
 
             st.success('✅ 相图分析完成！')
             fig_phase = plot_phase_diagram(phase_results)
@@ -577,7 +581,11 @@ def main():
 
         if st.button('▶ 运行安全库存分析', type='primary', key='safety_btn'):
             with st.spinner('安全库存分析运行中（约3-5分钟）...'):
-                safety_results = run_safety_floor(days=min(sim_days, 365), n_runs=5)
+                safety_results = run_safety_floor(days=min(sim_days, 365), n_runs=5,
+                                                  demand_mean=demand_mean, demand_std=demand_std,
+                                                  stockout_cost=stockout_cost, fixed_order_cost=fixed_order_cost,
+                                                  hold_cost=hold_cost,
+                                                  unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air)
 
             st.success('✅ 安全库存分析完成！')
             fig_safety = plot_safety_floor(safety_results)
