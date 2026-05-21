@@ -52,7 +52,9 @@ class SimulationWarehouse:
 
     def __init__(self, s, S, transport_mode='air', mbridge=False,
                  demand_mean=10, demand_std=3, stockout_cost=20,
-                 fixed_order_cost=50, hold_cost=0.5, cash_delay_days=None):
+                 fixed_order_cost=50, hold_cost=0.5,
+                 unit_cost_sea=2, unit_cost_air=8,
+                 cash_delay_days=None):
         self.s = s
         self.S = S
         self.transport_mode = transport_mode
@@ -76,10 +78,10 @@ class SimulationWarehouse:
 
         if transport_mode == 'sea':
             self.lt_shape, self.lt_scale = cfg.SEA_LT_SHAPE, cfg.SEA_LT_SCALE
-            self.unit_transport = 2
+            self.unit_transport = unit_cost_sea
         else:
             self.lt_shape, self.lt_scale = cfg.AIR_LT_SHAPE, cfg.AIR_LT_SCALE
-            self.unit_transport = 8
+            self.unit_transport = unit_cost_air
 
     def generate_demand(self):
         d = int(np.random.normal(self.demand_mean, self.demand_std))
@@ -168,6 +170,7 @@ class SimulationWarehouse:
 
 def run_repeated(s, S, mode, mbridge, days, n_runs,
                  demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost,
+                 unit_cost_sea, unit_cost_air,
                  cash_delay_days=None):
     costs, sls, orders, stockouts = [], [], [], []
 
@@ -176,7 +179,9 @@ def run_repeated(s, S, mode, mbridge, days, n_runs,
             s=s, S=S, transport_mode=mode, mbridge=mbridge,
             demand_mean=demand_mean, demand_std=demand_std,
             stockout_cost=stockout_cost, fixed_order_cost=fixed_order_cost,
-            hold_cost=hold_cost, cash_delay_days=cash_delay_days
+            hold_cost=hold_cost,
+            unit_cost_sea=unit_cost_sea, unit_cost_air=unit_cost_air,
+            cash_delay_days=cash_delay_days
         )
         r = wh.run(days=days)
         costs.append(r['total_cost'])
@@ -192,12 +197,14 @@ def run_repeated(s, S, mode, mbridge, days, n_runs,
 
 
 def run_sensitivity(s, S, mode, mbridge, days, n_runs,
-                    demand_mean, demand_std, fixed_order_cost, hold_cost):
+                    demand_mean, demand_std, fixed_order_cost, hold_cost,
+                    unit_cost_sea, unit_cost_air):
     pi_values = [5, 10, 20, 30, 50]
     results = []
     for pi in pi_values:
         r = run_repeated(s, S, mode, mbridge, days, n_runs,
-                        demand_mean, demand_std, pi, fixed_order_cost, hold_cost)
+                        demand_mean, demand_std, pi, fixed_order_cost, hold_cost,
+                        unit_cost_sea, unit_cost_air)
         results.append({'pi': pi, 'cost': r['avg_cost'], 'service': r['avg_service']})
     return results
 
@@ -306,10 +313,17 @@ def main():
         st.markdown("**💰 成本参数**")
         col3, col4 = st.columns(2)
         with col3:
-            stockout_cost = st.number_input('缺货损失（元/件）', value=20, min_value=1, max_value=200)
+            stockout_cost = st.number_input('缺货损失（元/件）', value=20, min_value=1, max_value=1000)
             fixed_order_cost = st.number_input('固定订货费（元/次）', value=50, min_value=10, max_value=500)
         with col4:
             hold_cost = st.number_input('持有成本（元/件/天）', value=0.5, min_value=0.1, max_value=20.0, step=0.1)
+
+        st.markdown("**🚚 运输单价**")
+        col_trans1, col_trans2 = st.columns(2)
+        with col_trans1:
+            unit_cost_sea = st.number_input('海运（元/件）', value=2, min_value=0, max_value=200)
+        with col_trans2:
+            unit_cost_air = st.number_input('空运（元/件）', value=8, min_value=0, max_value=1000)
 
         st.markdown("**📦 补货策略**")
         col5, col6 = st.columns(2)
@@ -346,7 +360,8 @@ def main():
             <b>当前实验设定：</b><br>
             需求 N({demand_mean}, {demand_std}) | 补货策略 ({s_param}, {S_param}) | 
             仿真 {sim_days}天 × {n_runs}次重复<br>
-            固定订货费 {fixed_order_cost}元 | 持有成本 {hold_cost}元/天 | 缺货惩罚 {stockout_cost}元/件
+            固定订货费 {fixed_order_cost}元 | 持有成本 {hold_cost}元/天 | 缺货惩罚 {stockout_cost}元/件<br>
+            海运 {unit_cost_sea}元/件 | 空运 {unit_cost_air}元/件
             </div>
             """, unsafe_allow_html=True)
 
@@ -367,13 +382,17 @@ def main():
 
             with st.spinner('仿真运行中，请稍候...'):
                 trad_sea = run_repeated(s_param, S_param, 'sea', False, sim_days, n_runs,
-                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost)
+                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost,
+                                       unit_cost_sea, unit_cost_air)
                 mbrg_sea = run_repeated(s_param, S_param, 'sea', True, sim_days, n_runs,
-                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost)
+                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost,
+                                       unit_cost_sea, unit_cost_air)
                 trad_air = run_repeated(s_param, S_param, 'air', False, sim_days, n_runs,
-                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost)
+                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost,
+                                       unit_cost_sea, unit_cost_air)
                 mbrg_air = run_repeated(s_param, S_param, 'air', True, sim_days, n_runs,
-                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost)
+                                       demand_mean, demand_std, stockout_cost, fixed_order_cost, hold_cost,
+                                       unit_cost_sea, unit_cost_air)
 
             st.success('✅ 仿真完成！')
 
@@ -465,9 +484,11 @@ def main():
         if sens_btn:
             with st.spinner('敏感性分析运行中（约1-2分钟）...'):
                 sens_trad = run_sensitivity(s_param, S_param, 'air', False, sim_days, n_runs,
-                                           demand_mean, demand_std, fixed_order_cost, hold_cost)
+                                           demand_mean, demand_std, fixed_order_cost, hold_cost,
+                                           unit_cost_sea, unit_cost_air)
                 sens_mbrg = run_sensitivity(s_param, S_param, 'air', True, sim_days, n_runs,
-                                           demand_mean, demand_std, fixed_order_cost, hold_cost)
+                                           demand_mean, demand_std, fixed_order_cost, hold_cost,
+                                           unit_cost_sea, unit_cost_air)
 
             st.success('✅ 敏感性分析完成！')
 
