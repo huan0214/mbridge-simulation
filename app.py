@@ -422,27 +422,51 @@ def main():
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown('<p class="section-title">💡 结果解读</p>', unsafe_allow_html=True)
-            air_reduction = (trad_air['avg_cost'] - mbrg_air['avg_cost']) / trad_air['avg_cost'] * 100
-            sea_reduction = (trad_sea['avg_cost'] - mbrg_sea['avg_cost']) / trad_sea['avg_cost'] * 100
-            air_sl_improve = (mbrg_air['avg_service'] - trad_air['avg_service']) * 100
-            freq_change = mbrg_air['avg_orders'] - trad_air['avg_orders']
+
+            # 自动判断最优模式
+            all_costs = {
+                '传统-海运': trad_sea['avg_cost'],
+                'mBridge-海运': mbrg_sea['avg_cost'],
+                '传统-空运': trad_air['avg_cost'],
+                'mBridge-空运': mbrg_air['avg_cost']
+            }
+            best_mode = min(all_costs, key=all_costs.get)
+            best_cost = all_costs[best_mode]
+
+            # 判断mBridge是否改善了最优模式
+            if 'mBridge' in best_mode:
+                if '空运' in best_mode:
+                    compare_mode = '传统-空运'
+                else:
+                    compare_mode = '传统-海运'
+                mbrg_improvement = (all_costs[compare_mode] - best_cost) / all_costs[compare_mode] * 100
+            else:
+                mbrg_improvement = None
+
+            # 判断海运vs空运谁更优
+            sea_best = min(all_costs['传统-海运'], all_costs['mBridge-海运'])
+            air_best = min(all_costs['传统-空运'], all_costs['mBridge-空运'])
+            dominant_mode = '空运' if air_best < sea_best else '海运'
 
             st.markdown(f"""
             <div class="conclusion">
             <b>🔍 核心发现：</b><br><br>
-            <b>1. mBridge显著降低空运成本</b><br>
-            空运模式下，mBridge使年总成本从 {trad_air['avg_cost']:,.0f}元 降至 {mbrg_air['avg_cost']:,.0f}元，
-            降幅达 <span class="highlight">{air_reduction:.1f}%</span>。
-            同时服务水平从 {trad_air['avg_service']:.1%} 提升至 {mbrg_air['avg_service']:.1%}
-            （+{air_sl_improve:.1f}个百分点）。<br><br>
-            <b>2. 海运存在结构性瓶颈</b><br>
-            海运成本仅降低 {sea_reduction:.1f}%（{trad_sea['avg_cost']:,.0f}→{mbrg_sea['avg_cost']:,.0f}元），
-            服务水平始终在 {mbrg_sea['avg_service']:.1%} 左右。<br><br>
-            <b>3. 补货模式向"多频少量"转变</b><br>
-            空运年订货次数从 {trad_air['avg_orders']:.1f}次 增至 {mbrg_air['avg_orders']:.1f}次
-            （{"+" if freq_change > 0 else ""}{freq_change:.1f}次）。<br><br>
-            <b>4. mBridge+空运是最优组合</b><br>
-            mBridge空运（{mbrg_air['avg_cost']:,.0f}元）的成本显著低于传统海运（{trad_sea['avg_cost']:,.0f}元）。
+            <b>1. 最优策略：{best_mode}</b><br>
+            在当前品类参数下，<span class="highlight"><b>{best_mode}</b></span> 是成本最低的方案，
+            年总成本 <b>{best_cost:,.0f}元</b>。
+            {f'相比{compare_mode}（{all_costs[compare_mode]:,.0f}元），mBridge使成本降低 <span class="highlight">{mbrg_improvement:.1f}%</span>。' if mbrg_improvement else ''}<br><br>
+            <b>2. mBridge对空运的影响</b><br>
+            空运成本：传统 {trad_air['avg_cost']:,.0f}元 → mBridge {mbrg_air['avg_cost']:,.0f}元
+            （降幅 {(trad_air['avg_cost'] - mbrg_air['avg_cost']) / trad_air['avg_cost'] * 100:.1f}%），
+            服务水平从 {trad_air['avg_service']:.1%} 提升至 {mbrg_air['avg_service']:.1%}。<br><br>
+            <b>3. mBridge对海运的影响</b><br>
+            海运成本：传统 {trad_sea['avg_cost']:,.0f}元 → mBridge {mbrg_sea['avg_cost']:,.0f}元
+            （降幅 {(trad_sea['avg_cost'] - mbrg_sea['avg_cost']) / trad_sea['avg_cost'] * 100:.1f}%），
+            服务水平从 {trad_sea['avg_service']:.1%} 变为 {mbrg_sea['avg_service']:.1%}。<br><br>
+            <b>4. 该品类运输模式倾向：{dominant_mode}</b><br>
+            {'空运综合成本更低，适合该品类。' if dominant_mode == '空运' else '海运综合成本更低，空运运费过高不适合该品类。'}
+            {'mBridge进一步强化了空运的优势。' if dominant_mode == '空运' and 'mBridge' in best_mode else ''}
+            {'但mBridge使海运反超空运成为最优——高持有成本下，资金秒到有效对冲了海运长周期的资金占用。' if dominant_mode == '海运' and 'mBridge' in best_mode else ''}
             </div>
             """, unsafe_allow_html=True)
 
