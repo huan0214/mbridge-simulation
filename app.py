@@ -309,7 +309,7 @@ def main():
             stockout_cost = st.number_input('缺货损失（元/件）', value=20, min_value=1, max_value=200)
             fixed_order_cost = st.number_input('固定订货费（元/次）', value=50, min_value=10, max_value=500)
         with col4:
-            hold_cost = st.number_input('持有成本（元/件/天）', value=0.5, min_value=0.1, max_value=5.0, step=0.1)
+            hold_cost = st.number_input('持有成本（元/件/天）', value=0.5, min_value=0.1, max_value=20.0, step=0.1)
 
         st.markdown("**📦 补货策略**")
         col5, col6 = st.columns(2)
