@@ -343,6 +343,32 @@ def main():
         st.caption("💡 提示：修改参数后点击右侧按钮重新计算")
         st.caption("📖 论文引用：该工具基于(s,S)策略与离散事件仿真，用于验证mBridge对海外仓补货策略的结构性影响。")
 
+        st.markdown("---")
+        st.markdown("### 🌍 跨国场景参数（扩展预留）")
+        st.caption("以下参数用于跨国对比场景，当前版本暂未接入仿真引擎")
+
+        col_country1, col_country2 = st.columns(2)
+        with col_country1:
+            st.markdown("**目的国A**")
+            country_a_clearance = st.number_input('清关时长（天）', value=3, min_value=0, max_value=30, key='ca_clear')
+            country_a_lt_std = st.number_input('物流波动（σ，天）', value=2.0, min_value=0.1, max_value=20.0, step=0.5,
+                                               key='ca_lt')
+            country_a_tariff = st.number_input('关税/税费率（%）', value=5.0, min_value=0.0, max_value=50.0, step=0.5,
+                                               key='ca_tax')
+            country_a_warehouse = st.number_input('海外仓租金（元/件/天）', value=0.5, min_value=0.1, max_value=20.0,
+                                                  step=0.1, key='ca_wh')
+        with col_country2:
+            st.markdown("**目的国B**")
+            country_b_clearance = st.number_input('清关时长（天）', value=5, min_value=0, max_value=30, key='cb_clear')
+            country_b_lt_std = st.number_input('物流波动（σ，天）', value=3.0, min_value=0.1, max_value=20.0, step=0.5,
+                                               key='cb_lt')
+            country_b_tariff = st.number_input('关税/税费率（%）', value=15.0, min_value=0.0, max_value=50.0, step=0.5,
+                                               key='cb_tax')
+            country_b_warehouse = st.number_input('海外仓租金（元/件/天）', value=1.0, min_value=0.1, max_value=20.0,
+                                                  step=0.1, key='cb_wh')
+
+        st.caption("💡 切换目的国参数后可对比不同国家的库存策略差异")
+
     # ===== 标签页 =====
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 核心对比实验", "📈 敏感性分析",
